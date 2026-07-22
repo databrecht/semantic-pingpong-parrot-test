@@ -38,15 +38,40 @@ enum NorwegianBlueFlightCondition {
     Free,
 }
 
+/// Calculates one Norwegian Blue's speed and cry from its power and whether it is nailed.
+/// `Parrot` selects the species; this value does not define other species' rules.
+struct NorwegianBlueParrot {
+    power: NorwegianBluePower,
+    flight_condition: NorwegianBlueFlightCondition,
+}
+
+impl NorwegianBlueParrot {
+    fn speed(&self) -> f32 {
+        match (&self.power, &self.flight_condition) {
+            (_, NorwegianBlueFlightCondition::Nailed) => 0.0,
+            (NorwegianBluePower::Unpowered, NorwegianBlueFlightCondition::Free) => 0.0,
+            (NorwegianBluePower::Powered { voltage }, NorwegianBlueFlightCondition::Free) => {
+                Self::speed_for_voltage(*voltage)
+            }
+        }
+    }
+
+    fn cry(&self) -> &'static str {
+        match self.power {
+            NorwegianBluePower::Powered { .. } => "Bzzzzzz",
+            NorwegianBluePower::Unpowered => "...",
+        }
+    }
+
+    fn speed_for_voltage(voltage: OperatingVoltage) -> f32 {
+        (voltage.volts() * BASE_SPEED).min(MAX_VOLTAGE_SPEED)
+    }
+}
+
 enum Parrot {
     European,
-    African {
-        coconut_count: usize,
-    },
-    NorwegianBlue {
-        power: NorwegianBluePower,
-        flight_condition: NorwegianBlueFlightCondition,
-    },
+    African { coconut_count: usize },
+    NorwegianBlue(NorwegianBlueParrot),
 }
 
 impl Parrot {
@@ -56,18 +81,7 @@ impl Parrot {
             Parrot::African { coconut_count } => {
                 (BASE_SPEED - COCONUT_LOAD_FACTOR * *coconut_count as f32).max(0.0)
             }
-            Parrot::NorwegianBlue {
-                flight_condition: NorwegianBlueFlightCondition::Nailed,
-                ..
-            } => 0.0,
-            Parrot::NorwegianBlue {
-                power: NorwegianBluePower::Unpowered,
-                flight_condition: NorwegianBlueFlightCondition::Free,
-            } => 0.0,
-            Parrot::NorwegianBlue {
-                power: NorwegianBluePower::Powered { voltage },
-                flight_condition: NorwegianBlueFlightCondition::Free,
-            } => speed_for_voltage(*voltage),
+            Parrot::NorwegianBlue(parrot) => parrot.speed(),
         }
     }
 
@@ -75,20 +89,9 @@ impl Parrot {
         match self {
             Parrot::European => "Sqoork!",
             Parrot::African { .. } => "Sqaark!",
-            Parrot::NorwegianBlue {
-                power: NorwegianBluePower::Powered { .. },
-                ..
-            } => "Bzzzzzz",
-            Parrot::NorwegianBlue {
-                power: NorwegianBluePower::Unpowered,
-                ..
-            } => "...",
+            Parrot::NorwegianBlue(parrot) => parrot.cry(),
         }
     }
-}
-
-fn speed_for_voltage(voltage: OperatingVoltage) -> f32 {
-    (voltage.volts() * BASE_SPEED).min(MAX_VOLTAGE_SPEED)
 }
 
 #[cfg(test)]
@@ -136,36 +139,36 @@ mod tests {
 
     #[test]
     fn nailed_norwegian_blue_parrot_speed() {
-        let parrot = Parrot::NorwegianBlue {
+        let parrot = Parrot::NorwegianBlue(NorwegianBlueParrot {
             power: NorwegianBluePower::Powered {
                 voltage: operating_voltage(1.5),
             },
             flight_condition: NorwegianBlueFlightCondition::Nailed,
-        };
+        });
 
         assert_eq!(parrot.speed(), 0.0);
     }
 
     #[test]
     fn free_norwegian_blue_parrot_speed() {
-        let parrot = Parrot::NorwegianBlue {
+        let parrot = Parrot::NorwegianBlue(NorwegianBlueParrot {
             power: NorwegianBluePower::Powered {
                 voltage: operating_voltage(1.5),
             },
             flight_condition: NorwegianBlueFlightCondition::Free,
-        };
+        });
 
         assert_eq!(parrot.speed(), 18.0);
     }
 
     #[test]
     fn free_norwegian_blue_parrot_speed_is_capped() {
-        let parrot = Parrot::NorwegianBlue {
+        let parrot = Parrot::NorwegianBlue(NorwegianBlueParrot {
             power: NorwegianBluePower::Powered {
                 voltage: operating_voltage(4.0),
             },
             flight_condition: NorwegianBlueFlightCondition::Free,
-        };
+        });
 
         assert_eq!(parrot.speed(), 24.0);
     }
@@ -186,22 +189,22 @@ mod tests {
 
     #[test]
     fn powered_norwegian_blue_parrot_cry() {
-        let parrot = Parrot::NorwegianBlue {
+        let parrot = Parrot::NorwegianBlue(NorwegianBlueParrot {
             power: NorwegianBluePower::Powered {
                 voltage: operating_voltage(4.0),
             },
             flight_condition: NorwegianBlueFlightCondition::Free,
-        };
+        });
 
         assert_eq!(parrot.cry(), "Bzzzzzz");
     }
 
     #[test]
     fn unpowered_norwegian_blue_parrot_cry() {
-        let parrot = Parrot::NorwegianBlue {
+        let parrot = Parrot::NorwegianBlue(NorwegianBlueParrot {
             power: NorwegianBluePower::Unpowered,
             flight_condition: NorwegianBlueFlightCondition::Free,
-        };
+        });
 
         assert_eq!(parrot.cry(), "...");
     }
